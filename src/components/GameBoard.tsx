@@ -1,11 +1,13 @@
 import { useState, useCallback, useRef } from 'react';
 import { GameState } from '../types';
-import { checkForBingo, countFilled } from '../lib/bingoChecker';
+import { checkForBingo, countFilled, getClosestToWin } from '../lib/bingoChecker';
 import { getCardWords } from '../lib/cardGenerator';
 import { detectWordsWithAliases } from '../lib/wordDetector';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useToast } from '../hooks/useToast';
 import { BingoCard } from './BingoCard';
 import { TranscriptPanel } from './TranscriptPanel';
+import { ToastContainer } from './ui/Toast';
 import { getCategoryById } from '../data/categories';
 
 interface Props {
@@ -21,10 +23,14 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
   const { card, winningLine, category } = game;
   const [micPermission, setMicPermission] = useState<MicPermission>('prompt');
   const [detectedWords, setDetectedWords] = useState<string[]>([]);
+  const { toasts, addToast, removeToast } = useToast();
 
   // Keep a ref to the current game so the speech callback always sees fresh state
   const gameRef = useRef(game);
   gameRef.current = game;
+
+  // Track whether "one away" toast has been shown for the current card
+  const oneAwayShownRef = useRef(false);
 
   const handleFinalTranscript = useCallback((segment: string) => {
     const currentGame = gameRef.current;
@@ -42,6 +48,7 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
     if (found.length === 0) return;
 
     setDetectedWords((prev) => [...prev, ...found]);
+    found.forEach((w) => addToast(`✨ ${w}`, 'success'));
 
     // Apply auto-fills
     const updatedSquares = currentGame.card.squares.map((row) =>
@@ -55,6 +62,14 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
     const filled = countFilled(updatedCard);
     const bingo = checkForBingo(updatedCard);
     const lastWord = found[found.length - 1];
+
+    if (!bingo) {
+      const closest = getClosestToWin(updatedCard);
+      if (closest?.needed === 1 && !oneAwayShownRef.current) {
+        oneAwayShownRef.current = true;
+        addToast('⚡ One away from BINGO!', 'warning');
+      }
+    }
 
     const updatedGame: GameState = {
       ...currentGame,
@@ -71,7 +86,7 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
     } else {
       onGameUpdate(updatedGame);
     }
-  }, [onGameUpdate, onWin]);
+  }, [addToast, onGameUpdate, onWin]);
 
   const speech = useSpeechRecognition(handleFinalTranscript);
 
@@ -85,14 +100,15 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
     const square = card.squares[row][col];
     if (square.isFreeSpace) return;
 
+    const filling = !square.isFilled;
     const updatedSquares = card.squares.map((r) =>
       r.map((sq) =>
         sq.id === square.id
           ? {
               ...sq,
-              isFilled: !sq.isFilled,
+              isFilled: filling,
               isAutoFilled: false,
-              filledAt: !sq.isFilled ? Date.now() : null,
+              filledAt: filling ? Date.now() : null,
             }
           : sq,
       ),
@@ -100,6 +116,14 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
     const updatedCard = { ...card, squares: updatedSquares };
     const filled = countFilled(updatedCard);
     const bingo = checkForBingo(updatedCard);
+
+    if (!bingo && filling) {
+      const closest = getClosestToWin(updatedCard);
+      if (closest?.needed === 1 && !oneAwayShownRef.current) {
+        oneAwayShownRef.current = true;
+        addToast('⚡ One away from BINGO!', 'warning');
+      }
+    }
 
     const updatedGame: GameState = {
       ...game,
@@ -142,8 +166,13 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
   function handleNewCardClick() {
     speech.stopListening();
     setDetectedWords([]);
+    oneAwayShownRef.current = false;
     onNewCard();
   }
+
+  // ── Near-win highlight ────────────────────────────────────────────────────
+  const closest = card ? getClosestToWin(card) : null;
+  const nearLineIds = closest?.needed === 1 ? new Set(closest.squareIds) : undefined;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -195,7 +224,12 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
 
       {/* Card */}
       <div className="w-full max-w-md mb-2">
-        <BingoCard card={card} winningLine={winningLine} onSquareClick={handleSquareClick} />
+        <BingoCard
+          card={card}
+          winningLine={winningLine}
+          nearLineIds={nearLineIds}
+          onSquareClick={handleSquareClick}
+        />
       </div>
 
       {/* Transcript panel (only when mic granted) */}
@@ -236,6 +270,8 @@ export function GameBoard({ game, onGameUpdate, onWin, onNewCard }: Props) {
           Mic error: {speech.error}
         </p>
       )}
+
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
 }

@@ -50,7 +50,9 @@ export function countFilled(card: BingoCard): number {
   return card.squares.flat().filter((sq) => sq.isFilled).length;
 }
 
-export function getClosestToWin(card: BingoCard): { needed: number; line: string } | null {
+export function getClosestToWin(
+  card: BingoCard,
+): { needed: number; line: string; squareIds: string[] } | null {
   const { squares } = card;
 
   const lines = [
@@ -69,12 +71,12 @@ export function getClosestToWin(card: BingoCard): { needed: number; line: string
     },
   ];
 
-  let closest = { needed: 5, line: '' };
+  let closest = { needed: 5, line: '', squareIds: [] as string[] };
   for (const line of lines) {
     const filled = line.squares.filter((sq) => sq.isFilled).length;
     const needed = 5 - filled;
     if (needed < closest.needed && needed > 0) {
-      closest = { needed, line: line.name };
+      closest = { needed, line: line.name, squareIds: line.squares.map((sq) => sq.id) };
     }
   }
 
