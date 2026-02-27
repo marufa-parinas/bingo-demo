@@ -23,7 +23,7 @@ export function buildShareText(game: GameState): string {
     `⏱️ ${elapsed}`,
     `🏆 Winning word: "${word}"`,
     `📊 ${filled}/24 squares filled`,
-    `meetingbingo.vercel.app`,
+    `bingo-demo-two.vercel.app`,
   ].join(' | ');
 }
 
