@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { GameState } from '../types';
 import { checkForBingo, countFilled } from '../lib/bingoChecker';
-import { generateCard, getCardWords } from '../lib/cardGenerator';
+import { getCardWords } from '../lib/cardGenerator';
 import { detectWordsWithAliases } from '../lib/wordDetector';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { BingoCard } from './BingoCard';

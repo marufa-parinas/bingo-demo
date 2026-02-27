@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GameState, CategoryId } from './types';
 import { generateCard } from './lib/cardGenerator';
+import { useLocalStorage } from './hooks/useLocalStorage';
 import { LandingPage } from './components/LandingPage';
 import { CategorySelect } from './components/CategorySelect';
 import { GameBoard } from './components/GameBoard';
@@ -21,8 +22,14 @@ const INITIAL_GAME: GameState = {
 };
 
 export default function App() {
+  const [game, setGame, clearGame] = useLocalStorage<GameState>(INITIAL_GAME);
   const [screen, setScreen] = useState<Screen>('landing');
-  const [game, setGame] = useState<GameState>(INITIAL_GAME);
+
+  // Restore screen from persisted game state on first load
+  useEffect(() => {
+    if (game.status === 'playing' && game.card) setScreen('game');
+    else if (game.status === 'won' && game.card) setScreen('win');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleStart() {
     setScreen('category');
@@ -30,28 +37,30 @@ export default function App() {
 
   function handleCategorySelect(categoryId: CategoryId) {
     const card = generateCard(categoryId);
-    setGame({
+    const newGame: GameState = {
       ...INITIAL_GAME,
       status: 'playing',
       category: categoryId,
       card,
       startedAt: Date.now(),
-      filledCount: 1, // free space
-    });
+      filledCount: 1,
+    };
+    setGame(newGame);
     setScreen('game');
   }
 
   function handleNewCard() {
     if (!game.category) return;
     const card = generateCard(game.category);
-    setGame({
+    const newGame: GameState = {
       ...INITIAL_GAME,
       status: 'playing',
       category: game.category,
       card,
       startedAt: Date.now(),
       filledCount: 1,
-    });
+    };
+    setGame(newGame);
     setScreen('game');
   }
 
@@ -65,7 +74,7 @@ export default function App() {
   }
 
   function handleHome() {
-    setGame(INITIAL_GAME);
+    clearGame();
     setScreen('landing');
   }
 
